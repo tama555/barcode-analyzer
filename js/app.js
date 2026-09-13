@@ -184,23 +184,63 @@
    * カメラ
    * ================================================================ */
 
+  const VIDEO_SIZE = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+
+  /**
+   * カメラ映像を取得する。デバイス指定に失敗したら自動選択で取り直す。
+   * 一覧で選んだカメラが抜かれている場合などに効く。
+   */
+  async function getStream(deviceId) {
+    if (deviceId) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          video: Object.assign({ deviceId: { exact: deviceId } }, VIDEO_SIZE),
+          audio: false,
+        });
+      } catch (e) {
+        // 拒否された場合に別条件で再要求しても無意味なので、そのまま投げ返す
+        if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+      }
+    }
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        video: Object.assign({ facingMode: { ideal: 'environment' } }, VIDEO_SIZE),
+        audio: false,
+      });
+    } catch (e) {
+      if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+      // 解像度や背面指定が通らない端末向けの最終手段
+      return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
+  }
+
+  /** 失敗理由を、対処が分かる日本語にする */
+  function describeCameraError(e) {
+    const name = e && e.name ? e.name : '';
+    if (name === 'NotAllowedError') return 'アクセスが拒否されました。ブラウザのアドレスバーの鍵マークから、このサイトのカメラを「許可」に変えてください。';
+    if (name === 'SecurityError') return '安全な接続ではないため使えません。https:// で開いてください。';
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'カメラが見つかりません。';
+    if (name === 'NotReadableError' || name === 'TrackStartError') return 'カメラを別のアプリが使用中です。他のアプリを閉じてから試してください。';
+    if (name === 'OverconstrainedError') return '指定した条件に合うカメラがありません。';
+    return (name ? name + ': ' : '') + (e && e.message ? e.message : '原因不明');
+  }
+
   async function startCamera() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setStatus('このブラウザはカメラ API に対応していません。', 'error');
       return;
     }
     setStatus('カメラを起動しています…');
-    const deviceId = dom.cameraSelect.value;
-    const constraints = {
-      video: deviceId && deviceId !== 'auto'
-        ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-        : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false,
-    };
+
+    // 一覧を取得する前は選択欄に実在するデバイス ID が入っていない。
+    // その値をそのまま要求すると必ず失敗するため、自動扱いに落とす
+    const selected = dom.cameraSelect.value;
+    const deviceId = (selected && selected !== 'auto' && !dom.cameraSelect.disabled) ? selected : null;
+
     try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      stream = await getStream(deviceId);
     } catch (e) {
-      setStatus('カメラを開始できません: ' + (e && e.name === 'NotAllowedError' ? 'アクセスが拒否されました' : e.message), 'error');
+      setStatus('カメラを開始できません: ' + describeCameraError(e), 'error');
       return;
     }
     track = stream.getVideoTracks()[0];
