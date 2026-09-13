@@ -298,6 +298,7 @@ function renderDeviceSettings(settings) {
   if (settings.tally) {
     const t = el('div', 'tally ' + (settings.tally.decisive ? 'is-decisive' : ''));
     t.appendChild(el('div', 'tally-head', '読み取り集計  ' + settings.tally.count + ' 件中 ' + settings.tally.matched + ' 件一致'));
+    if (settings.tally.headline) t.appendChild(el('div', 'tally-headline', settings.tally.headline));
     t.appendChild(el('p', 'tally-text', settings.tally.sentence));
     if (settings.tally.hint) t.appendChild(el('p', 'tally-hint', settings.tally.hint));
     sec.appendChild(t);

@@ -274,17 +274,48 @@ function evaluateTally(falsePositive, tally) {
   if (!allMatched) {
     return {
       n: n, matched: matched, allMatched: false, decisive: decisive,
-      probability: null, method: null,
+      probability: null, presence: null, method: null,
+      headline: 'チェックデジットなし',
+      // 一致しない個体がある時点で、確率ではなく矛盾の問題になる。
+      // 付いていれば全件一致するはずなので、割合では表さない
       sentence: n + ' 件中 ' + matched + ' 件のみ一致しました。',
     };
   }
 
   const probability = Math.pow(falsePositive, n);
+  const presence = presenceProbability(probability);
   return {
     n: n, matched: matched, allMatched: true, decisive: decisive,
-    probability: probability, method: method,
-    sentence: n + ' 件すべて' + (method ? ' ' + method + ' と' : '') + '一致しました。偶然こうなる確率は ' + formatProbability(probability) + ' です。',
+    probability: probability, presence: presence, method: method,
+    headline: 'チェックデジットあり ' + formatPresence(presence),
+    sentence: n + ' 件すべて' + (method ? ' ' + method + ' と' : '') + '一致しました。'
+      + 'チェックデジットがある確率は ' + formatPresence(presence) + ' です。'
+      + '（付いていないのに偶然こう見える確率は ' + formatProbability(probability) + '）',
   };
+}
+
+/**
+ * 「チェックデジットがある確率」を求める。
+ *
+ * 表示したいのは「ある確率」だが、計算で直接出るのは
+ * 「ない場合に偶然こう見える確率」である。前者へ変えるには、
+ * 読む前の時点で有無が半々という前提を1つ置く必要がある。
+ *
+ *   P(あり | n枚すべて一致) = 1 / (1 + p^n)
+ *
+ * p は1枚あたり偶然一致する確率。前提が半々なので、
+ * 客先の事情で「ほぼ付いているはず」と分かっている場合は
+ * 実際の確率はこれより高くなる。控えめな見積もりになる。
+ */
+function presenceProbability(coincidence) {
+  return 1 / (1 + coincidence);
+}
+
+/** 100% と表示すると断定に見えるため、上限は 99.9% 以上とする */
+function formatPresence(p) {
+  const pct = p * 100;
+  if (pct >= 99.9) return '99.9 % 以上';
+  return pct.toFixed(1) + ' %';
 }
 
 function formatProbability(p) {
@@ -306,6 +337,7 @@ function summariseTally(code, tally) {
   return {
     count: n,
     matched: tally.matched,
+    headline: stat.headline,
     sentence: stat.sentence,
     decisive: stat.decisive,
     hint: stat.decisive

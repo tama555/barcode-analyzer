@@ -131,6 +131,21 @@ test('集計の確率が枚数とともに下がる', () => {
   assert.ok(p4.includes('0.024 %'), p4);
 });
 
+test('チェックデジットがある確率を枚数ごとに出す', () => {
+  const expected = { 1: '88.9 %', 2: '98.5 %', 3: '99.8 %', 5: '99.9 % 以上' };
+  for (const n of [1, 2, 3, 5]) {
+    const t = build('CODABAR', 'A12346B', { evaluated: n, matched: n }).tally;
+    assert.strictEqual(t.headline, 'チェックデジットあり ' + expected[n], n + ' 枚: ' + t.headline);
+    assert.ok(t.sentence.includes('チェックデジットがある確率は ' + expected[n]), t.sentence);
+  }
+});
+
+test('一致しない例があれば確率ではなく「なし」と出す', () => {
+  const t = build('CODABAR', 'A12345B', { evaluated: 3, matched: 2 }).tally;
+  assert.strictEqual(t.headline, 'チェックデジットなし');
+  assert.strictEqual(t.sentence.indexOf('確率'), -1, '確率を出してはいけない: ' + t.sentence);
+});
+
 test('方式が全枚数で一致したら方式名を出す', () => {
   const m = 'モジュラス16（スタート・ストップを含む）';
   const s = build('CODABAR', 'A2444445945D', { evaluated: 3, matched: 3, methods: { [m]: 3 } });
