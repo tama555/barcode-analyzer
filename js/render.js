@@ -80,7 +80,7 @@ function checkSummaryBadge(result) {
   return { cls: 'na', text: '検査情報なし' };
 }
 
-function renderResult(result, container) {
+function renderResult(result, container, tally) {
   container.textContent = '';
   const s = result.symbology;
 
@@ -108,6 +108,11 @@ function renderResult(result, container) {
   val.appendChild(copy);
   head.appendChild(val);
   container.appendChild(head);
+
+  /* ---------- 機器の設定（この画面の主目的） ---------- */
+  if (typeof buildDeviceSettings === 'function') {
+    container.appendChild(renderDeviceSettings(buildDeviceSettings(result, tally)));
+  }
 
   /* ---------- 桁の可視化 ---------- */
   const segs = digitSegments(s.code, result.raw.text);
@@ -261,4 +266,65 @@ function addSpec(dl, k, v) {
 /** 制御文字を可視化した表示用文字列 */
 function displayText(text) {
   return text.replace(/\u001d/g, '⟨GS⟩').replace(/\u001e/g, '⟨RS⟩').replace(/\u0004/g, '⟨EOT⟩');
+}
+
+/* =================================================================== *
+ * 機器の設定
+ * =================================================================== */
+
+const SETTING_LEVEL_LABEL = {
+  fixed: '確定',
+  likely: 'そう判断してよい',
+  unknown: '要確認',
+  warn: '要調査',
+};
+
+function renderDeviceSettings(settings) {
+  const sec = el('section', 'res-section setting-block');
+  sec.appendChild(el('h3', null, '読取機の設定'));
+
+  for (const item of settings.items) {
+    const box = el('div', 'setting-item ' + item.level);
+    const head = el('div', 'setting-head');
+    head.appendChild(el('span', 'setting-label', item.label));
+    head.appendChild(el('span', 'setting-level', SETTING_LEVEL_LABEL[item.level] || item.level));
+    box.appendChild(head);
+    box.appendChild(el('div', 'setting-value', item.value));
+    if (item.detail) box.appendChild(el('p', 'setting-detail', item.detail));
+    if (item.note) box.appendChild(el('p', 'setting-note', item.note));
+    sec.appendChild(box);
+  }
+
+  if (settings.tally) {
+    const t = el('div', 'tally ' + (settings.tally.decisive ? 'is-decisive' : ''));
+    t.appendChild(el('div', 'tally-head', '読み取り集計  ' + settings.tally.count + ' 件中 ' + settings.tally.matched + ' 件一致'));
+    t.appendChild(el('p', 'tally-text', settings.tally.sentence));
+    if (settings.tally.hint) t.appendChild(el('p', 'tally-hint', settings.tally.hint));
+    sec.appendChild(t);
+  }
+
+  const copy = el('button', 'btn btn-sm copy-settings', '設定内容をコピー');
+  copy.addEventListener('click', () => {
+    navigator.clipboard.writeText(settingsToText(settings)).then(() => {
+      copy.textContent = 'コピーしました';
+      setTimeout(() => { copy.textContent = '設定内容をコピー'; }, 1500);
+    });
+  });
+  sec.appendChild(copy);
+  return sec;
+}
+
+/** 作業報告や引き継ぎにそのまま貼れる形にする */
+function settingsToText(settings) {
+  const lines = ['【読取機の設定】'];
+  for (const item of settings.items) {
+    lines.push('■ ' + item.label + ': ' + item.value);
+    if (item.detail) lines.push('   ' + item.detail);
+    if (item.note) lines.push('   ※ ' + item.note);
+  }
+  if (settings.tally) {
+    lines.push('■ 読み取り集計: ' + settings.tally.count + ' 件中 ' + settings.tally.matched + ' 件一致');
+    lines.push('   ' + settings.tally.sentence);
+  }
+  return lines.join('\n');
 }

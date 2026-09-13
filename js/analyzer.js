@@ -59,7 +59,7 @@ function mod43Code39(payload) {
   };
 }
 
-/** Codabar モジュラス16 チェックキャラクタ（本体部分のみを対象にする） */
+/** NW-7 (Codabar) モジュラス16 チェックキャラクタ（本体部分のみを対象にする） */
 const CODABAR_CHARSET = '0123456789-$:/.+';
 function mod16Codabar(payload) {
   let sum = 0;
@@ -826,9 +826,9 @@ function analyzeCode128(text, r, meta) {
   r.structure.push({ label: 'データ長', value: text.length + '文字', note: null });
 }
 
-/* ---------------------------- Codabar ----------------------------- */
+/* ------------------------- NW-7 (Codabar) ------------------------- */
 function analyzeCodabar(text, r) {
-  r.aliases.push('NW-7', 'USD-4', 'Monarch', 'Code 2 of 7');
+  r.aliases.push('Codabar', 'USD-4', 'Monarch', 'Code 2 of 7');
   let body = text;
   let start = null, stop = null;
   if (/^[A-Da-d]/.test(text) && /[A-Da-d]$/.test(text) && text.length >= 2) {
@@ -854,7 +854,7 @@ function analyzeCodabar(text, r) {
       name: 'チェックキャラクタ',
       status: 'na',
       value: 'なし（または別方式）',
-      detail: 'Codabar の検査数字は規格上任意で、モジュラス16 のほかモジュラス11 など業界ごとの方式があります。末尾文字はモジュラス16 の計算値と一致しませんでした。',
+      detail: 'NW-7 の検査数字は規格上任意で、モジュラス16 のほかモジュラス11 など業界ごとの方式があります。末尾文字はモジュラス16 の計算値と一致しませんでした。',
       formula: calc ? calc.formula : null,
     });
   }

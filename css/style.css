@@ -307,3 +307,48 @@ body {
 @media (display-mode: standalone) {
   .app-footer { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 }
+
+/* ---------------- 読取機の設定 ---------------- */
+.setting-block {
+  border: 1px solid var(--border-accent, var(--accent));
+  border-radius: 10px;
+  padding: 12px 12px 14px;
+  background: var(--info-bg);
+}
+.setting-block > h3 { color: var(--info); font-size: 13px; margin-bottom: 10px; }
+
+.setting-item {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 0 8px 8px 0;
+  padding: 9px 12px;
+  margin-bottom: 8px;
+}
+.setting-item.fixed { border-left-color: var(--ok); }
+.setting-item.likely { border-left-color: var(--info); }
+.setting-item.unknown { border-left-color: var(--na); }
+.setting-item.warn { border-left-color: var(--ng); }
+
+.setting-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.setting-label { font-size: 12px; color: var(--ink-mute); }
+.setting-level { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--na-bg); color: var(--ink-mute); flex: 0 0 auto; }
+.setting-item.fixed .setting-level { background: var(--ok-bg); color: var(--ok); }
+.setting-item.warn .setting-level { background: var(--ng-bg); color: var(--ng); }
+.setting-item.likely .setting-level { background: var(--info-bg); color: var(--info); }
+
+.setting-value { font-size: 17px; font-weight: 600; margin-top: 2px; word-break: break-word; }
+.setting-detail { font-size: 13px; margin: 4px 0 0; }
+.setting-note { font-size: 12px; margin: 5px 0 0; color: var(--ink-mute); }
+
+.tally {
+  border: 1px dashed var(--line); border-radius: 8px; padding: 9px 12px;
+  margin-top: 10px; background: var(--panel);
+}
+.tally.is-decisive { border-style: solid; border-color: var(--ok); }
+.tally-head { font-size: 12px; color: var(--ink-mute); }
+.tally-text { margin: 3px 0 0; font-size: 13px; }
+.tally.is-decisive .tally-text { color: var(--ok); font-weight: 600; }
+.tally-hint { margin: 4px 0 0; font-size: 12px; color: var(--ink-mute); }
+
+.copy-settings { margin-top: 10px; }

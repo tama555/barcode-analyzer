@@ -69,6 +69,10 @@
   let lastHit = { text: '', at: 0 };
   const history = [];
 
+  // 形式ごとに、チェックデジットの一致状況を数える。
+  // 任意仕様の形式は1枚では判断できないため、複数枚の傾向で確度を上げる
+  const formatTally = {};
+
   /* ================================================================ *
    * デコード共通処理
    * ================================================================ */
@@ -147,6 +151,7 @@
 
     const analysis = analyzeBarcode(formatCode, text, meta, rawBytes);
     appendExtensionInfo(analysis, meta);
+    recordTally(formatCode, analysis);
     show(analysis);
     pushHistory(formatCode, text, analysis, source);
     return analysis;
@@ -176,8 +181,26 @@
   function show(analysis) {
     dom.emptyState.hidden = true;
     dom.result.hidden = false;
-    renderResult(analysis, dom.result);
+    renderResult(analysis, dom.result, formatTally[analysis.symbology.code] || null);
     dom.result.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  /**
+   * 同じ値を数え直さないよう、読み取った値ごとに一度だけ集計する。
+   * 同じバーコードを10回読んでも確度は上がらないため。
+   */
+  function recordTally(formatCode, analysis) {
+    const t = formatTally[formatCode] || (formatTally[formatCode] = { evaluated: 0, matched: 0, seen: {} });
+    const text = analysis.raw.text;
+    if (t.seen[text]) return;
+
+    const cd = analysis.checks.find((c) => c.kind === 'cd');
+    if (!cd) return;
+    if (cd.status !== 'info-ok' && cd.status !== 'na' && cd.status !== 'ok' && cd.status !== 'ng') return;
+
+    t.seen[text] = true;
+    t.evaluated++;
+    if (cd.status === 'info-ok' || cd.status === 'ok') t.matched++;
   }
 
   /* ================================================================ *
@@ -494,6 +517,7 @@
     if (chosen === 'AUTO') {
       analysis.notes.push('シンボル種別は入力文字列から推定したものです。実際のシンボルとは異なる場合があります。');
     }
+    recordTally(formatCode, analysis);
     show(analysis);
     pushHistory(formatCode, text, analysis, '手入力');
   }

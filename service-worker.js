@@ -9,7 +9,7 @@
  *
  * ファイルを足したり減らしたりしたら CACHE_NAME の版数を上げること。
  */
-const CACHE_NAME = 'barcode-analyzer-v5';
+const CACHE_NAME = 'barcode-analyzer-v6';
 
 const ASSETS = [
   './',
@@ -19,6 +19,7 @@ const ASSETS = [
   './js/data.js',
   './js/generate.js',
   './js/analyzer.js',
+  './js/settings.js',
   './js/render.js',
   './js/app.js',
   './js/pwa.js',

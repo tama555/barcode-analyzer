@@ -345,13 +345,13 @@ const SYMBOLOGY_SPECS = {
     note: '2桁を1組にして符号化する。段ボール表示の ITF-14 が代表例。',
   },
   CODABAR: {
-    label: 'Codabar (NW-7)',
+    label: 'NW-7 (Codabar)',
     kind: '1次元 (線形)',
     standard: 'ANSI/AIM BC3, JIS X 0506',
     charset: '0-9 および - $ : / . +、開始／終了に A-D',
     length: '可変長',
     checkDigit: '任意 (モジュラス16 など運用依存)',
-    note: '図書館の利用者カードや宅配便の送り状で使われる。',
+    note: '日本では NW-7 と呼ぶ。海外の機器では Codabar と表記される。図書館の利用者カードや宅配便の送り状で使われる。',
   },
   RSS_14: {
     label: 'GS1 DataBar (RSS-14)',
