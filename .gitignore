@@ -1,0 +1,13 @@
+# エディタ・OS が作る一時ファイル
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# 依存パッケージ（このアプリは外部依存なしで動くが、将来の追加に備えて）
+node_modules/
+
+# ローカル設定
+.vscode/
+.idea/

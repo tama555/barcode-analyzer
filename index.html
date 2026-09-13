@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>バーコード識別アプリ</title>
+<meta name="description" content="バーコードの形式・構造・チェックデジットをその場で解析します。">
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1f27" media="(prefers-color-scheme: dark)">
+
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="バーコード識別">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="update-banner" id="updateBanner" hidden>
+  <span>新しい版があります</span>
+  <button class="btn btn-sm" id="updateBtn">更新する</button>
+  <button class="btn btn-ghost btn-sm" id="updateDismiss">あとで</button>
+</div>
+
+<header class="app-header">
+  <h1>バーコード識別アプリ</h1>
+  <p class="tagline">カメラで読み取ったコードの形式・構造・チェックデジットを解析します</p>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 左：入力 ============ -->
+  <section class="panel scanner-panel">
+    <div class="tabbar" role="tablist">
+      <button class="tab is-active" data-tab="camera" role="tab">カメラ</button>
+      <button class="tab" data-tab="image" role="tab">画像</button>
+      <button class="tab" data-tab="manual" role="tab">手入力</button>
+      <button class="tab" data-tab="sample" role="tab">サンプル</button>
+    </div>
+
+    <!-- カメラ -->
+    <div class="tabpane is-active" data-pane="camera">
+      <div class="video-wrap" id="videoWrap">
+        <video id="video" playsinline muted></video>
+        <div class="guide" id="guide"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
+        <div class="video-placeholder" id="videoPlaceholder">
+          <p>カメラは停止中です</p>
+          <p class="sub">「スキャン開始」を押してカメラを許可してください</p>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn" class="btn btn-primary">スキャン開始</button>
+        <button id="stopBtn" class="btn" disabled>停止</button>
+        <button id="torchBtn" class="btn" disabled hidden>ライト</button>
+      </div>
+
+      <div class="controls">
+        <label class="field">
+          <span>カメラ</span>
+          <select id="cameraSelect" disabled><option>（未取得）</option></select>
+        </label>
+      </div>
+
+      <div class="controls compact">
+        <label class="check"><input type="checkbox" id="optRoi" checked> 枠内のみ解析（高速）</label>
+        <label class="check"><input type="checkbox" id="optTryHarder" checked> 精密モード</label>
+        <label class="check"><input type="checkbox" id="optInverted"> 白黒反転も試す</label>
+        <label class="check"><input type="checkbox" id="optContinuous"> 連続スキャン</label>
+        <label class="check"><input type="checkbox" id="optBeep" checked> 読取音</label>
+      </div>
+
+      <p class="status" id="status">待機中</p>
+    </div>
+
+    <!-- 画像 -->
+    <div class="tabpane" data-pane="image">
+      <div class="dropzone" id="dropzone">
+        <p>画像ファイルをドロップ</p>
+        <p class="sub">またはクリックして選択／ここに貼り付け (Ctrl+V)</p>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+      </div>
+      <div class="preview-wrap"><img id="imagePreview" alt="" hidden></div>
+      <p class="status" id="imageStatus">画像を読み込むと解析します</p>
+    </div>
+
+    <!-- 手入力 -->
+    <div class="tabpane" data-pane="manual">
+      <label class="field">
+        <span>コードの値</span>
+        <input type="text" id="manualText" placeholder="例: 4901234567894" autocomplete="off">
+      </label>
+      <label class="field">
+        <span>シンボル種別</span>
+        <select id="manualFormat">
+          <option value="AUTO">自動判定（桁数から推定）</option>
+          <option value="EAN_13">EAN-13 / JAN-13</option>
+          <option value="EAN_8">EAN-8 / JAN-8</option>
+          <option value="UPC_A">UPC-A</option>
+          <option value="UPC_E">UPC-E</option>
+          <option value="ITF">ITF / ITF-14</option>
+          <option value="CODE_39">Code 39</option>
+          <option value="CODE_93">Code 93</option>
+          <option value="CODE_128">Code 128 / GS1-128</option>
+          <option value="CODABAR">Codabar (NW-7)</option>
+          <option value="QR_CODE">QR コード</option>
+          <option value="DATA_MATRIX">データマトリックス</option>
+          <option value="PDF_417">PDF417</option>
+          <option value="AZTEC">Aztec</option>
+        </select>
+      </label>
+      <div class="controls">
+        <button id="manualBtn" class="btn btn-primary">解析する</button>
+      </div>
+      <p class="hint">GS1-128 の区切り (FNC1) は <code>\x1d</code> または <code>{GS}</code> と書けます。</p>
+    </div>
+
+
+    <!-- サンプル生成 -->
+    <div class="tabpane" data-pane="sample">
+      <p class="hint">動作確認用のバーコードを生成します。画面に表示したまま別の端末のカメラで読んでも確認できます。</p>
+      <label class="field">
+        <span>シンボル種別</span>
+        <select id="sampleFormat">
+          <option value="EAN_13">EAN-13 / JAN-13</option>
+          <option value="EAN_8">EAN-8 / JAN-8</option>
+          <option value="UPC_A">UPC-A</option>
+          <option value="ITF">ITF-14</option>
+          <option value="CODE_39">Code 39</option>
+          <option value="QR_CODE">QR コード</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>値</span>
+        <input type="text" id="sampleText" value="4901234567894" autocomplete="off">
+      </label>
+      <div class="controls">
+        <button id="sampleGen" class="btn btn-primary">生成</button>
+        <button id="sampleDecode" class="btn" disabled>この画像を解析</button>
+      </div>
+      <div class="preview-wrap"><canvas id="sampleCanvas"></canvas></div>
+      <p class="status" id="sampleStatus">種別と値を指定して生成してください</p>
+    </div>
+
+    <div class="history-block">
+      <div class="history-head">
+        <h2>読取履歴</h2>
+        <button id="clearHistory" class="btn btn-ghost btn-sm">消去</button>
+      </div>
+      <ol class="history" id="history"><li class="empty">まだ読み取っていません</li></ol>
+    </div>
+  </section>
+
+  <!-- ============ 右：結果 ============ -->
+  <section class="panel result-panel" id="resultPanel">
+    <div class="empty-state" id="emptyState">
+      <p class="big">解析結果がここに表示されます</p>
+      <ul>
+        <li>シンボル種別（EAN-13、QR、Code 128 など）と準拠規格</li>
+        <li>チェックデジットの有無・計算方式・検証結果</li>
+        <li>桁ごとの意味（GS1 プレフィックス、メーカーコードなど）</li>
+        <li>GS1 アプリケーション識別子の分解</li>
+      </ul>
+    </div>
+    <div id="result" hidden></div>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <p>解析はすべてブラウザ内で完結します。読み取ったデータは外部に送信されません。</p>
+</footer>
+
+<script src="vendor/zxing.umd.js"></script>
+<script src="js/data.js"></script>
+<script src="js/generate.js"></script>
+<script src="js/analyzer.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+<script src="js/pwa.js"></script>
+</body>
+</html>
