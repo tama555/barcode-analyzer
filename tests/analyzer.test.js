@@ -196,6 +196,36 @@ test('GS1: 未知の AI は残りとして返す', () => {
   assert.strictEqual(p.trailing, 'ZZZZ');
 });
 
+/* ---------------------- NW-7 (Codabar) ---------------------- */
+test('NW-7: モジュラス16 はスタート・ストップを合計に含める', () => {
+  // 客先の実物。A(16)+2+4+4+4+4+4+5+9+4+D(19) = 75 → 検査文字 5
+  // 検査文字まで足すと 80 となり 16 の倍数になる
+  const r = analyzeBarcode('CODABAR', 'A2444445945D', {}, null);
+  const c = findCheck(r, /チェックキャラクタ/);
+  assert.strictEqual(c.status, 'info-ok', '実物の検査文字を検出できていない');
+  assert.ok(c.name.includes('スタート・ストップを含む'), '方式名が違う: ' + c.name);
+  assert.ok(c.formula.includes('= 75'), '合計が 75 になっていない: ' + c.formula);
+});
+
+test('NW-7: データ部のみで計算する実装にも対応する', () => {
+  const r = analyzeBarcode('CODABAR', 'A12346B', {}, null);
+  const c = findCheck(r, /チェックキャラクタ/);
+  assert.strictEqual(c.status, 'info-ok');
+  assert.ok(c.name.includes('データ部のみ'), '方式名が違う: ' + c.name);
+});
+
+test('NW-7: どちらの方式とも合わなければ「なし」と報告する', () => {
+  const c = findCheck(analyzeBarcode('CODABAR', 'A000001B', {}, null), /チェックキャラクタ/);
+  assert.strictEqual(c.status, 'na');
+});
+
+test('NW-7: スタート文字 A は 16 なので結果に影響しない', () => {
+  // A は 16 で 16 の倍数。含めても含めなくても余りは変わらない
+  const withA = analyzeBarcode('CODABAR', 'A2444445945D', {}, null);
+  const cA = findCheck(withA, /チェックキャラクタ/);
+  assert.strictEqual(cA.status, 'info-ok');
+});
+
 /* ---------------------- Codabar ---------------------- */
 test('Codabar: スタート／ストップ文字を切り出す', () => {
   const r = analyzeBarcode('CODABAR', 'A123456789012B', {}, null);

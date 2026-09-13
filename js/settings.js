@@ -18,10 +18,16 @@
  *   'warn'    … そのままでは設定できない。要調査
  */
 
-/** 任意仕様のチェックデジットを持つ形式と、その計算方式の分母 */
-const OPTIONAL_CD_MODULUS = {
-  CODABAR: 16,
-  CODE_39: 43,
+/**
+ * 任意仕様のチェックデジットを持つ形式と、1 枚あたり偶然一致してしまう確率。
+ *
+ * NW-7 はモジュラス16 を2通り（スタート・ストップを含む／含まない）試すため、
+ * 単独の 1/16 ではなく、いずれかに当たる確率 1/8 で見積もる。
+ * Code 39 はモジュラス43 の1通りのみ。
+ */
+const OPTIONAL_CD_FALSE_POSITIVE = {
+  CODABAR: 1 / 8,
+  CODE_39: 1 / 43,
 };
 
 /**
@@ -133,8 +139,8 @@ function checkDigitItem(code, analysis, tally) {
   }
 
   // 規格上そもそも必須の形式
-  const modulus = OPTIONAL_CD_MODULUS[code];
-  if (!modulus) {
+  const falsePositive = OPTIONAL_CD_FALSE_POSITIVE[code];
+  if (!falsePositive) {
     if (cd.status === 'ok') {
       return {
         label: 'チェックデジット検証',
@@ -166,20 +172,24 @@ function checkDigitItem(code, analysis, tally) {
 
   // 任意仕様の形式。判断は集計だけを根拠にする。
   // 今読んだ1枚ではなく、これまでに読んだ全件の傾向で決める
-  const stat = evaluateTally(modulus, tally);
+  const stat = evaluateTally(falsePositive, tally);
   const allMatched = stat ? stat.allMatched : cd.status === 'info-ok';
   const decisive = stat ? stat.decisive : false;
   const evidence = stat ? stat.sentence : '';
   const remaining = stat ? Math.max(0, SAMPLES_FOR_DECISION - stat.n) : SAMPLES_FOR_DECISION;
   const more = 'あと ' + remaining + ' 枚読むと断定できます。';
 
+  // 集計がある場合は、全枚数で同じ方式に当たったときだけ方式名を出す。
+  // 枚数ごとに違う方式に当たっているなら、方式は特定できていない
+  const method = stat ? stat.method : (cd.method || null);
+
   if (allMatched && decisive) {
     return {
       label: 'チェックデジット検証',
-      value: '有効にしてよい',
+      value: method ? '有効にする / ' + method : '有効にしてよい',
       level: 'likely',
       detail: evidence + ' 機器の検証設定を有効にして問題ありません。',
-      note: null,
+      note: method ? '機器で検証方式を選べる場合は ' + method + ' を指定してください。' : null,
     };
   }
   if (allMatched) {
@@ -246,33 +256,34 @@ function startStopItem(analysis) {
  * 任意仕様の形式で、何枚読んで何枚一致したかから確度を出す。
  * 偶然すべて一致する確率は (1/分母)^枚数。
  */
-function evaluateTally(modulus, tally) {
-  if (!modulus || !tally || !tally.evaluated) return null;
+function evaluateTally(falsePositive, tally) {
+  if (!falsePositive || !tally || !tally.evaluated) return null;
 
   const n = tally.evaluated;
   const matched = tally.matched;
   const allMatched = matched === n;
   const decisive = n >= SAMPLES_FOR_DECISION;
 
+  // 全枚数で同じ方式に当たり続けたものだけを答えとする。
+  // 枚数ごとに違う方式に当たっている場合、方式は特定できていない
+  let method = null;
+  if (allMatched && tally.methods) {
+    method = Object.keys(tally.methods).find((k) => tally.methods[k] === n) || null;
+  }
+
   if (!allMatched) {
     return {
-      n: n,
-      matched: matched,
-      allMatched: false,
-      decisive: decisive,
-      probability: null,
+      n: n, matched: matched, allMatched: false, decisive: decisive,
+      probability: null, method: null,
       sentence: n + ' 件中 ' + matched + ' 件のみ一致しました。',
     };
   }
 
-  const probability = Math.pow(1 / modulus, n);
+  const probability = Math.pow(falsePositive, n);
   return {
-    n: n,
-    matched: matched,
-    allMatched: true,
-    decisive: decisive,
-    probability: probability,
-    sentence: n + ' 件すべて一致しました。偶然こうなる確率は ' + formatProbability(probability) + ' です。',
+    n: n, matched: matched, allMatched: true, decisive: decisive,
+    probability: probability, method: method,
+    sentence: n + ' 件すべて' + (method ? ' ' + method + ' と' : '') + '一致しました。偶然こうなる確率は ' + formatProbability(probability) + ' です。',
   };
 }
 
@@ -285,10 +296,10 @@ function formatProbability(p) {
 
 /** 画面に出す集計ブロック。判断材料が足りないときは何枚必要かを示す */
 function summariseTally(code, tally) {
-  const modulus = OPTIONAL_CD_MODULUS[code];
-  if (!modulus || !tally || !tally.evaluated) return null;
+  const falsePositive = OPTIONAL_CD_FALSE_POSITIVE[code];
+  if (!falsePositive || !tally || !tally.evaluated) return null;
 
-  const stat = evaluateTally(modulus, tally);
+  const stat = evaluateTally(falsePositive, tally);
   const n = tally.evaluated;
   const need = Math.max(0, SAMPLES_FOR_DECISION - n);
 

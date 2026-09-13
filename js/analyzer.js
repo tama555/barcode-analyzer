@@ -59,17 +59,49 @@ function mod43Code39(payload) {
   };
 }
 
-/** NW-7 (Codabar) モジュラス16 チェックキャラクタ（本体部分のみを対象にする） */
+/**
+ * NW-7 (Codabar) モジュラス16 チェックキャラクタ。
+ *
+ * 規格では、スタート文字とストップ文字も合計に含める。
+ * 検査文字まで足した全体の合計が 16 の倍数になるように決める。
+ * スタート／ストップは A=16、B=17、C=18、D=19 の値を持つ。
+ *
+ * A は 16 なので 16 で割った余りに影響しないが、B・C・D は結果を変える。
+ * ストップ文字を含め忘れると、A 始まりであっても答えがずれる。
+ *
+ * 機器によってはスタート／ストップを含めない実装もあるため、
+ * 呼び出し側で両方を試せるよう includeMarks で切り替える。
+ */
 const CODABAR_CHARSET = '0123456789-$:/.+';
-function mod16Codabar(payload) {
+const CODABAR_MARK_VALUE = { A: 16, B: 17, C: 18, D: 19, T: 16, N: 17, '*': 18, E: 19 };
+
+function codabarValue(ch) {
+  const up = ch.toUpperCase();
+  if (CODABAR_MARK_VALUE[up] != null) return CODABAR_MARK_VALUE[up];
+  const v = CODABAR_CHARSET.indexOf(ch);
+  return v < 0 ? null : v;
+}
+
+/**
+ * @param {string} payload  検査文字を除いたデータ部
+ * @param {string|null} start スタート文字。含めない場合は null
+ * @param {string|null} stop  ストップ文字。含めない場合は null
+ */
+function mod16Codabar(payload, start, stop) {
   let sum = 0;
   const terms = [];
-  for (const ch of payload) {
-    const v = CODABAR_CHARSET.indexOf(ch);
-    if (v < 0) return null;
+  const add = (ch, label) => {
+    const v = codabarValue(ch);
+    if (v == null) return false;
     sum += v;
-    terms.push(ch + '(' + v + ')');
-  }
+    terms.push(ch + '(' + v + ')' + (label || ''));
+    return true;
+  };
+
+  if (start != null && !add(start, '[開始]')) return null;
+  for (const ch of payload) if (!add(ch)) return null;
+  if (stop != null && !add(stop, '[終了]')) return null;
+
   const check = (16 - (sum % 16)) % 16;
   return {
     check: CODABAR_CHARSET[check],
@@ -840,22 +872,32 @@ function analyzeCodabar(text, r) {
     r.structure.push({ label: 'スタート／ストップ文字', value: '出力に含まれない', note: '読取器の設定によっては除去されて出力される' });
   }
 
-  const calc = body.length >= 2 ? mod16Codabar(body.slice(0, -1)) : null;
-  if (calc && calc.check === body[body.length - 1]) {
+  // 規格どおりスタート／ストップを含める計算を第一候補とし、
+  // 含めない実装の機器もあるため、そちらも試して合う方を採用する
+  const payload = body.length >= 2 ? body.slice(0, -1) : null;
+  const printed = body.length >= 2 ? body[body.length - 1] : null;
+  const variants = payload == null ? [] : [
+    { name: 'モジュラス16（スタート・ストップを含む）', calc: mod16Codabar(payload, start, stop) },
+    { name: 'モジュラス16（データ部のみ）', calc: mod16Codabar(payload, null, null) },
+  ].filter((v) => v.calc);
+
+  const hit = variants.find((v) => v.calc.check === printed);
+  if (hit) {
     r.checks.push({
-      name: 'チェックキャラクタ (モジュラス16)',
+      name: 'チェックキャラクタ (' + hit.name + ')',
       status: 'info-ok',
-      value: body[body.length - 1],
-      detail: '末尾文字がモジュラス16 の計算結果と一致します。チェックキャラクタ付きの可能性があります。',
-      formula: calc.formula,
+      value: printed,
+      detail: '末尾文字が ' + hit.name + ' の計算結果と一致します。読取機の検証方式にはこれを選んでください。',
+      formula: hit.calc.formula,
+      method: hit.name,
     });
   } else {
     r.checks.push({
       name: 'チェックキャラクタ',
       status: 'na',
       value: 'なし（または別方式）',
-      detail: 'NW-7 の検査数字は規格上任意で、モジュラス16 のほかモジュラス11 など業界ごとの方式があります。末尾文字はモジュラス16 の計算値と一致しませんでした。',
-      formula: calc ? calc.formula : null,
+      detail: 'NW-7 の検査数字は規格上任意で、モジュラス16 のほかモジュラス11 やモジュラス10 を使う業界もあります。試したモジュラス16 の2通りとは一致しませんでした。',
+      formula: variants.length ? variants[0].calc.formula : null,
     });
   }
   r.structure.push({ label: 'データ長', value: body.length + '文字', note: 'スタート／ストップを除く' });

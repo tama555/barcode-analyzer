@@ -124,10 +124,26 @@ test('確率はどの枚数でも説明文に出る', () => {
 });
 
 test('集計の確率が枚数とともに下がる', () => {
+  // NW-7 はモジュラス16 を2通り試すため、1枚あたりの誤検出は 1/8 とみなす
   const p1 = build('CODABAR', 'A12346B', { evaluated: 1, matched: 1 }).tally.sentence;
   const p4 = build('CODABAR', 'A12346B', { evaluated: 4, matched: 4 }).tally.sentence;
-  assert.ok(p1.includes('6.3 %'), p1);
-  assert.ok(p4.includes('0.002 %'), p4);
+  assert.ok(p1.includes('12.5 %'), p1);
+  assert.ok(p4.includes('0.024 %'), p4);
+});
+
+test('方式が全枚数で一致したら方式名を出す', () => {
+  const m = 'モジュラス16（スタート・ストップを含む）';
+  const s = build('CODABAR', 'A2444445945D', { evaluated: 3, matched: 3, methods: { [m]: 3 } });
+  assert.ok(cd(s).value.includes(m), cd(s).value);
+  assert.ok(cd(s).note.includes(m), cd(s).note);
+});
+
+test('方式が混在していたら方式名を出さない', () => {
+  const a = 'モジュラス16（スタート・ストップを含む）';
+  const b = 'モジュラス16（データ部のみ）';
+  const s = build('CODABAR', 'A2444445945D', { evaluated: 3, matched: 3, methods: { [a]: 2, [b]: 1 } });
+  assert.strictEqual(cd(s).value, '有効にしてよい');
+  assert.strictEqual(cd(s).note, null);
 });
 
 test('必須形式には集計ブロックを出さない', () => {

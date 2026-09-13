@@ -190,7 +190,7 @@
    * 同じバーコードを10回読んでも確度は上がらないため。
    */
   function recordTally(formatCode, analysis) {
-    const t = formatTally[formatCode] || (formatTally[formatCode] = { evaluated: 0, matched: 0, seen: {} });
+    const t = formatTally[formatCode] || (formatTally[formatCode] = { evaluated: 0, matched: 0, seen: {}, methods: {} });
     const text = analysis.raw.text;
     if (t.seen[text]) return;
 
@@ -200,7 +200,11 @@
 
     t.seen[text] = true;
     t.evaluated++;
-    if (cd.status === 'info-ok' || cd.status === 'ok') t.matched++;
+    if (cd.status === 'info-ok' || cd.status === 'ok') {
+      t.matched++;
+      // どの計算方式で一致したかを数える。全枚数で同じ方式なら、それが運用中の方式
+      if (cd.method) t.methods[cd.method] = (t.methods[cd.method] || 0) + 1;
+    }
   }
 
   /* ================================================================ *
