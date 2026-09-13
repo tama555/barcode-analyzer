@@ -24,6 +24,14 @@ const OPTIONAL_CD_MODULUS = {
   CODE_39: 43,
 };
 
+/**
+ * 断定に必要な読み取り枚数。
+ * 一致・不一致のどちらの向きにも同じ枚数を課す。
+ * 不一致は統計的には1枚でもほぼ決着するが、印刷不良の1枚を掴んだ場合に
+ * 誤った設定を勧めてしまう。現場で迷わないよう基準を一本にする。
+ */
+const SAMPLES_FOR_DECISION = 3;
+
 /** 機器の設定画面で使われがちな呼び名。メーカー固有の言い回しは避ける */
 const SYMBOLOGY_SETTING_NAME = {
   EAN_13: 'EAN-13 / JAN-13',
@@ -156,26 +164,48 @@ function checkDigitItem(code, analysis, tally) {
     }
   }
 
-  // 任意仕様の形式。集計があればそれを根拠にする
+  // 任意仕様の形式。判断は集計だけを根拠にする。
+  // 今読んだ1枚ではなく、これまでに読んだ全件の傾向で決める
   const stat = evaluateTally(modulus, tally);
-  if (cd.status === 'info-ok') {
+  const allMatched = stat ? stat.allMatched : cd.status === 'info-ok';
+  const decisive = stat ? stat.decisive : false;
+  const evidence = stat ? stat.sentence : '';
+  const remaining = stat ? Math.max(0, SAMPLES_FOR_DECISION - stat.n) : SAMPLES_FOR_DECISION;
+  const more = 'あと ' + remaining + ' 枚読むと断定できます。';
+
+  if (allMatched && decisive) {
     return {
       label: 'チェックデジット検証',
-      value: stat && stat.decisive ? '有効にしてよい' : '有効にできる可能性',
-      level: stat && stat.decisive ? 'likely' : 'unknown',
-      detail: stat && stat.decisive
-        ? stat.sentence + ' 機器の検証設定を有効にして問題ありません。'
-        : '末尾の文字が計算結果と一致しました。ただし1枚だけでは偶然の一致と区別できません。',
-      // 件数と確率は下の集計欄に出るので、ここでは繰り返さない
-      note: stat && stat.decisive ? null : '同じ現場のバーコードをあと数枚読んでください。下の集計欄で確度が上がります。',
+      value: '有効にしてよい',
+      level: 'likely',
+      detail: evidence + ' 機器の検証設定を有効にして問題ありません。',
+      note: null,
+    };
+  }
+  if (allMatched) {
+    return {
+      label: 'チェックデジット検証',
+      value: '有効にできる可能性',
+      level: 'unknown',
+      detail: evidence + ' この枚数では偶然の一致と区別できません。',
+      note: more,
+    };
+  }
+  if (decisive) {
+    return {
+      label: 'チェックデジット検証',
+      value: '無効にする',
+      level: 'likely',
+      detail: evidence + ' チェックデジットが付いていれば全件一致するはずです。付いていないと判断してください。',
+      note: 'モジュラス11 など別方式で付与されている可能性は残ります。読めない個体が出る場合は発行元に方式を確認してください。',
     };
   }
   return {
     label: 'チェックデジット検証',
-    value: '無効にする',
-    level: 'likely',
-    detail: '末尾の文字が計算結果と一致しませんでした。検証を有効にすると、このバーコードは読めません。無効にしてください。',
-    note: 'モジュラス11 など別方式で付与されている可能性は残ります。読めない個体が出る場合は発行元に方式を確認してください。',
+    value: '無効にする可能性',
+    level: 'unknown',
+    detail: evidence + ' チェックデジットなしと考えられますが、印刷不良の1枚を読んだ可能性もあります。',
+    note: more,
   };
 }
 
@@ -221,20 +251,26 @@ function evaluateTally(modulus, tally) {
 
   const n = tally.evaluated;
   const matched = tally.matched;
+  const allMatched = matched === n;
+  const decisive = n >= SAMPLES_FOR_DECISION;
 
-  if (matched < n) {
+  if (!allMatched) {
     return {
-      decisive: true,
+      n: n,
+      matched: matched,
       allMatched: false,
-      sentence: n + ' 件中 ' + matched + ' 件しか一致しませんでした。チェックデジットは付いていないと判断できます。',
+      decisive: decisive,
+      probability: null,
+      sentence: n + ' 件中 ' + matched + ' 件のみ一致しました。',
     };
   }
 
   const probability = Math.pow(1 / modulus, n);
-  const decisive = n >= 3;
   return {
-    decisive: decisive,
+    n: n,
+    matched: matched,
     allMatched: true,
+    decisive: decisive,
     probability: probability,
     sentence: n + ' 件すべて一致しました。偶然こうなる確率は ' + formatProbability(probability) + ' です。',
   };
@@ -254,7 +290,7 @@ function summariseTally(code, tally) {
 
   const stat = evaluateTally(modulus, tally);
   const n = tally.evaluated;
-  const need = Math.max(0, 3 - n);
+  const need = Math.max(0, SAMPLES_FOR_DECISION - n);
 
   return {
     count: n,
@@ -263,6 +299,6 @@ function summariseTally(code, tally) {
     decisive: stat.decisive,
     hint: stat.decisive
       ? null
-      : 'あと ' + need + ' 枚読むと、偶然の一致を排除できます。',
+      : 'あと ' + need + ' 枚読むと断定できます。',
   };
 }

@@ -73,7 +73,7 @@ test('ITF の14桁以外は要確認にする', () => {
 });
 
 /* -------------------- 複数枚の集計 -------------------- */
-test('NW-7: 1件だけでは断定しない', () => {
+test('NW-7: 一致していても1件では断定しない', () => {
   const s = build('CODABAR', 'A12346B', { evaluated: 1, matched: 1 });
   assert.strictEqual(cd(s).value, '有効にできる可能性');
   assert.strictEqual(cd(s).level, 'unknown');
@@ -89,11 +89,38 @@ test('NW-7: 3件そろえば断定する', () => {
   assert.strictEqual(s.tally.hint, null);
 });
 
-test('NW-7: ばらつけば枚数によらず「なし」と断定する', () => {
-  const s = build('CODABAR', 'A12345B', { evaluated: 2, matched: 1 });
+test('NW-7: 不一致でも1件では断定しない', () => {
+  const s = build('CODABAR', 'A12345B', { evaluated: 1, matched: 0 });
+  assert.strictEqual(cd(s).value, '無効にする可能性');
+  assert.strictEqual(cd(s).level, 'unknown');
+  assert.strictEqual(s.tally.decisive, false);
+  assert.ok(cd(s).note.includes('あと 2 枚'));
+});
+
+test('NW-7: 不一致も3件そろえば断定する', () => {
+  const s = build('CODABAR', 'A12345B', { evaluated: 3, matched: 2 });
   assert.strictEqual(cd(s).value, '無効にする');
-  assert.ok(s.tally.sentence.includes('付いていない'));
+  assert.strictEqual(cd(s).level, 'likely');
   assert.strictEqual(s.tally.decisive, true);
+});
+
+test('断定に必要な枚数は一致・不一致で同じ', () => {
+  const match2 = build('CODABAR', 'A12346B', { evaluated: 2, matched: 2 });
+  const miss2 = build('CODABAR', 'A12345B', { evaluated: 2, matched: 1 });
+  assert.strictEqual(cd(match2).level, 'unknown');
+  assert.strictEqual(cd(miss2).level, 'unknown');
+  const match3 = build('CODABAR', 'A12346B', { evaluated: 3, matched: 3 });
+  const miss3 = build('CODABAR', 'A12345B', { evaluated: 3, matched: 1 });
+  assert.strictEqual(cd(match3).level, 'likely');
+  assert.strictEqual(cd(miss3).level, 'likely');
+});
+
+test('確率はどの枚数でも説明文に出る', () => {
+  for (const n of [1, 2, 3, 5]) {
+    const d = cd(build('CODABAR', 'A12346B', { evaluated: n, matched: n })).detail;
+    assert.ok(/%/.test(d), n + ' 件で確率が出ていない: ' + d);
+    assert.ok(d.indexOf(n + ' 件') === 0, n + ' 件の件数表示がない: ' + d);
+  }
 });
 
 test('集計の確率が枚数とともに下がる', () => {
